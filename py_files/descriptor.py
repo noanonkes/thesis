@@ -8,20 +8,10 @@ import pickle
 import argparse
 from collections import OrderedDict
 from typing import Any, Callable, cast, Dict, List, Optional, Tuple
-from IPython.display import Image
 
 from sklearn.datasets import fetch_openml
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
-%matplotlib inline
-
-# Dimension reduction and clustering libraries
-import umap
-import umap.plot
-import hdbscan
-import sklearn.cluster as cluster
-from sklearn.metrics import adjusted_rand_score, adjusted_mutual_info_score, davies_bouldin_score, silhouette_score
-from scipy.spatial import distance
 
 from torch.utils.data import Dataset
 from torchvision.datasets.vision import VisionDataset
@@ -36,6 +26,11 @@ import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 import torchvision.models as models
 
+OUTPUT_DIM = {
+    "resnet18":  512,
+    "resnet50": 2048,
+    "r18_sw-sup": 512,
+}
 
 def augmentation(key, imsize=500):
     """Using ImageNet statistics for normalization.
@@ -575,36 +570,45 @@ def create_descriptors(export_dir, net = "r18INgem", net_path = None,
         pickle.dump(descriptors_dict, data,protocol = pickle.HIGHEST_PROTOCOL)
         print("descriptors pickle file complete: {}".format(exp_dir+"descriptors.pkl"))
 
+
 def main():
-	parser = argparse.ArgumentParser()
-	parser.add_argument('directory', metavar='EXPORT_DIR',help='destination where descriptors will be saved')
-	parser.add_argument('--gpuid', default=0, type=int) #id of the gpu in your machine
-	parser.add_argument('--net', default='r18INgem')
-	parser.add_argument('--netpath', default=None) #optional
-	parser.add_argument('--ms', action='store_true') #multiscale descriptors
-	parser.add_argument('--mini', action='store_true') #use the mini database
-	parser.add_argument('--queries_only', action='store_true')
-	parser.add_argument('--trained_on_mini', action='store_true') #if your model has a classification head for the mini dataset
-	parser.add_argument('--info_dir',default=None, type=str, help = 'directory where ground truth is stored')
-	parser.add_argument('--im_root',default=None, type=str, help = 'directory where images are stored')
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('directory', metavar='EXPORT_DIR',help='destination where descriptors will be saved')
+    parser.add_argument('--gpu', action='store_true') #id of the gpu in your machine
+    parser.add_argument('--net', default='r18INgem')
+    parser.add_argument('--netpath', default=None) #optional
+    parser.add_argument('--ms', action='store_true') #multiscale descriptors
+    parser.add_argument('--mini', action='store_true') #use the mini database
+    parser.add_argument('--queries_only', action='store_true')
+    parser.add_argument('--trained_on_mini', action='store_true') #if your model has a classification head for the mini dataset
+    parser.add_argument('--info_dir',default=None, type=str, help = 'directory where ground truth is stored')
+    parser.add_argument('--im_root',default=None, type=str, help = 'directory where images are stored')
+    parser.add_argument('--augment_type',default='augment_inference', type=str, help = 'preprocessing of images')
 
     args = parser.parse_args()
-    export_dir = args.directory
-    create_descriptors(export_dir, net = "r18INgem", net_path = None,
-                              mini = True, info_dir = None, im_root = None,
-                              ms = False, queries_only = False,
-                              augment_type = "augment_inference", gpu = False,
-                              vis_only = True)
 
-    create_descriptors(exp_path, net = "r50INgem", net_path = None,
-                              mini = True, info_dir = truth_path, im_root = image_path,
-                              ms = False, queries_only = False,
-                              augment_type = "augment_train", gpu = False,
-                              vis_only = True)
+    export_dir = args.directory
+    network_variant = args.net
+    netpath = args.netpath
+    mini = args.mini
+    info_dir = args.info_dir
+    im_root = args.im_root
+    ms = args.ms
+    queries_only = args.queries_only
+    augment_type = args.augment_type
+    gpu = args.gpu
+
+    create_descriptors(export_dir, net = network_variant, net_path = netpath,
+                              mini = mini, info_dir = info_dir, im_root = im_root,
+                              ms = ms, queries_only = queries_only,
+                              augment_type = augment_type, gpu = gpu,
+                              vis_only = False)
+
 
 if __name__ == '__main__':
     """
-    python3 descriptor.py ../descriptors --net "r18INgem" --info_dir ../ground_truth --im_root ../images
-    python3 descriptor.py ../descriptors --net "r50INgem" --info_dir ../ground_truth --im_root ../images
+    python3 descriptor.py ../descriptors --net "r18INgem" --mini --info_dir ../ground_truth --im_root ../images
+    python3 descriptor.py ../descriptors --net "r50INgem" --mini --info_dir ../ground_truth --im_root ../images
     """
-	main()
+    main()
